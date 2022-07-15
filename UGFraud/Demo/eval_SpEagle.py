@@ -1,22 +1,37 @@
 from UGFraud.Detector.SpEagle import *
+import random
 
 if __name__ == '__main__':
 	# data source
-	file_name = 'Yelp_graph_data.json'
+	file_name = 'UGFraud/Yelp_graph_data.json'
 	G = load_graph(file_name)
 	review_ground_truth = edge_attr_filter(G, 'types', 'review', 'label')
+	classes = 5
 
 	# input parameters: numerical_eps, eps, num_iters, stop_threshold
 	numerical_eps = 1e-5
 	eps = 0.1
-	user_review_potential = np.log(np.array([[1 - numerical_eps, numerical_eps], [numerical_eps, 1 - numerical_eps]]))
-	review_product_potential = np.log(np.array([[1 - eps, eps], [eps, 1 - eps]]))
+
+	user_review_potential = np.log(
+								np.array([
+									[random.uniform(0,1)* numerical_eps for _ in range(classes)] 
+									for _ in range(classes)
+								]
+							))
+
+	review_product_potential = np.log(
+								np.array([
+									[random.uniform(0,1)* eps for _ in range(classes)] 
+									for _ in range(classes)
+								]
+							))
+
 	potentials = {'u_r': user_review_potential, 'r_u': user_review_potential,
 	              'r_p': review_product_potential, 'p_r': review_product_potential}
 	max_iters = 4
 	stop_threshold = 1e-3
 
-	model = SpEagle(G, potentials, message=None, max_iters=4)
+	model = SpEagle(G, potentials, classes=classes, message=None, max_iters=4)
 
 	# new runbp func
 	model.schedule(schedule_type='bfs')

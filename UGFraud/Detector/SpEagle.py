@@ -10,7 +10,7 @@ from UGFraud.Utils.helper import *
 from heapq import *
 from scipy.special import logsumexp
 import pickle
-
+import random
 
 class myTuple():
 	def __init__(self, cost, node_id):
@@ -34,7 +34,7 @@ class Node(object):
 		_neighbors: a list of references to its neighbors
 	"""
 
-	def __init__(self, name, prior, node_type):
+	def __init__(self, name, prior, node_type, classes):
 		""" Create the attributes
 		Args:
 			name: a string id of this node.
@@ -54,16 +54,10 @@ class Node(object):
 		# from this node to the neighbor
 		self._outgoing = {}
 
-		# prior in log space, with check on 0's
-		if prior == 1:
-			prior = 1 - self._eps
-		elif prior == 0:
-			prior = self._eps
-
 		self._prior = np.log(
-			np.array([1 - prior, prior]))  # previous version: self._prior = np.log(np.array([1-prior, prior]))
+			np.array([prior + random.uniform(0, 1) * self._eps for _ in range(classes)]))  # previous version: self._prior = np.log(np.array([1-prior, prior]))
 
-		self._num_classes = 2
+		self._num_classes = classes
 
 		self._type = node_type
 
@@ -207,10 +201,10 @@ class Node(object):
 			# log H, where H is symmetric and there is no need to transpose it
 			log_H = potentials[edge_type]
 
-			log_m_ij = logsumexp(log_H + np.tile(log_m_i.transpose(), (2, 1)), axis=1)
+			log_m_ij = logsumexp(log_H + np.tile(log_m_i.transpose(), (self._num_classes, 1)), axis=1)
 
 			# normalize the message
-			log_Z = logsumexp(log_H + np.tile(log_m_i.transpose(), (2, 1)))
+			log_Z = logsumexp(log_H + np.tile(log_m_i.transpose(), (self._num_classes, 1)))
 
 			log_m_ij -= log_Z#
 
@@ -223,7 +217,7 @@ class Node(object):
 
 
 class SpEagle:
-	def __init__(self, graph, potentials, message=None, max_iters=1):
+	def __init__(self, graph, potentials, classes, message=None, max_iters=1):
 		""" set up the data and parameters.
 
 		Args:
@@ -235,6 +229,7 @@ class SpEagle:
 		self._potentials = potentials
 		self._max_iters = max_iters
 		self._message = message
+		self._num_classes = classes
 
 		self._user_priors = node_attr_filter(graph, 'types', 'user', 'prior')
 		self._product_priors = node_attr_filter(graph, 'types', 'prod', 'prior')
@@ -250,20 +245,20 @@ class SpEagle:
 			unique_u_id = 'u' + u_id
 
 			# prior in log scale
-			self._nodes[unique_u_id] = Node(unique_u_id, self._user_priors[u_id], 'u')
+			self._nodes[unique_u_id] = Node(unique_u_id, self._user_priors[u_id], 'u', classes = classes)
 
 			# go through the reviews posted by the user
 			for p_id in graph[u_id].keys():
 				unique_p_id = 'p' + p_id
 
 				if unique_p_id not in self._nodes:
-					self._nodes[unique_p_id] = Node(unique_p_id, self._product_priors[p_id], 'p')
+					self._nodes[unique_p_id] = Node(unique_p_id, self._product_priors[p_id], 'p', classes = classes)
 
 				review_id = (u_id, p_id)
 				unique_review_id = (unique_u_id, unique_p_id)
 
 				if unique_review_id not in self._nodes:
-					review_node = Node(unique_review_id, self._review_priors[review_id], 'r')
+					review_node = Node(unique_review_id, self._review_priors[review_id], 'r', classes = classes)
 
 					# add connections and out-going messages if the graph is a global graph
 					if self._message is None:
@@ -297,7 +292,7 @@ class SpEagle:
 			unique_u_id = 'u' + u_id
 			if unique_u_id not in self._nodes:
 				self._user_priors[u_id] = new_u_priors[u_id]
-				self._nodes[unique_u_id] = Node(unique_u_id, self._user_priors[u_id], 'u')
+				self._nodes[unique_u_id] = Node(unique_u_id, self._user_priors[u_id], 'u', classes = classes)
 
 			# go through the reviews posted by the user
 			for t in reviews:
@@ -306,14 +301,14 @@ class SpEagle:
 
 				if unique_p_id not in self._nodes:
 					self._product_priors[p_id] = new_p_priors[p_id]
-					self._nodes[unique_p_id] = Node(unique_p_id, self._product_priors[p_id], 'p')
+					self._nodes[unique_p_id] = Node(unique_p_id, self._product_priors[p_id], 'p', classes = classes)
 
 				review_id = (u_id, p_id)
 				unique_review_id = (unique_u_id, unique_p_id)
 
 				if unique_review_id not in self._nodes:
 					self._review_priors[review_id] = new_r_priors[review_id]
-					review_node = Node(unique_review_id, self._review_priors[review_id], 'r')
+					review_node = Node(unique_review_id, self._review_priors[review_id], 'r', classes = classes)
 
 					# add connections and out-going messages
 					review_node.add_neighbor(unique_u_id)
@@ -509,13 +504,15 @@ class SpEagle:
 
 
 if __name__ == '__main__':
-	prefix = '/Users/dozee/Desktop/Reseach/Spam_Detection/Dataset/YelpChi/'
+	prefix = 'Yelp_Data/YelpChi/'
 	metadata_filename = prefix + 'metadata.gz'
 
 	# prior file names
 	user_prior_filename = prefix + 'UserPriors.pickle'
 	prod_prior_filename = prefix + 'ProdPriors.pickle'
 	review_prior_filename = prefix + 'ReviewPriors.pickle'
+
+	classes = 2
 
 	# read the graph and node priors
 	user_product_graph, product_user_graph = read_graph_data(metadata_filename)
@@ -540,14 +537,26 @@ if __name__ == '__main__':
 		[eps, 1 - eps]
 	'''
 	numerical_eps = 1e-5
-	user_review_potential = np.log(np.array([[1 - numerical_eps, numerical_eps], [numerical_eps, 1 - numerical_eps]]))
+	user_review_potential = np.log(
+								np.array([
+									[random.uniform(0,1)* numerical_eps for _ in range(classes)] 
+									for _ in range(classes)
+								]
+							))
+	
 	eps = 0.1
-	review_product_potential = np.log(np.array([[1 - eps, eps], [eps, 1 - eps]]))
+	
+	review_product_potential = np.log(
+								np.array([
+									[random.uniform(0,1)* eps for _ in range(classes)] 
+									for _ in range(classes)
+								]
+							))
 
 	potentials = {'u_r': user_review_potential, 'r_u': user_review_potential,
 				  'r_p': review_product_potential, 'p_r': review_product_potential}
 
-	model = SpEagle(user_product_graph, [user_priors, prod_priors, review_priors], potentials, max_iters=100)
+	model = SpEagle(user_product_graph, potentials, classes = classes, max_iters=100)
 	model.schedule()
 	model.run_bp()
 
