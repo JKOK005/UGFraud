@@ -65,6 +65,7 @@ class ZooBP:
             u_priors[i] = node_prior_index[i]
         for i in reversed_dict['prod']:
             p_priors[i] = node_prior_index[i]
+
         self.u_tag, user_priors = zip(*u_priors.items())
         self.u_priors = np.array(user_priors)
         self.p_tag, prod_priors = zip(*p_priors.items())
@@ -150,7 +151,6 @@ class ZooBP:
         user_beliefs = dict(zip(self.u_tag, user_beliefs[:, 0]))
         prod_beliefs = B2.reshape((n_prod, 2))
         prod_beliefs = dict(zip(self.p_tag, prod_beliefs[:, 0]))
-
         return user_beliefs, prod_beliefs
 
 

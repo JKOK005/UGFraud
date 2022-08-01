@@ -492,14 +492,13 @@ class SpEagle:
 			posterior = posterior_med / np.sum(posterior_med)
 
 			if node_type == 'review':
-				reviewBelief[review_id] = posterior[1]
+				reviewBelief[review_id] = posterior
 			elif node_type == 'user':
-				userBelief[user_id] = posterior[1]
+				userBelief[user_id] = posterior
 			elif node_type == 'product':
-				prodBelief[prod_id] = posterior[1]
+				prodBelief[prod_id] = posterior
 			else:
 				continue
-
 		return userBelief, reviewBelief, prodBelief
 
 

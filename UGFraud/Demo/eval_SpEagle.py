@@ -1,12 +1,16 @@
+from torch_geometric.datasets import Planetoid
 from UGFraud.Detector.SpEagle import *
+from UGFraud.Utils.GraphConverter import GraphConverter
 import random
 
 if __name__ == '__main__':
 	# data source
-	file_name = 'UGFraud/Yelp_graph_data.json'
-	G = load_graph(file_name)
+	# file_name = 'UGFraud/Yelp_graph_data.json'
+	# G = load_graph(file_name)
+	G = GraphConverter.frame_pubmed()
+
 	review_ground_truth = edge_attr_filter(G, 'types', 'review', 'label')
-	classes = 5
+	classes = 4
 
 	# input parameters: numerical_eps, eps, num_iters, stop_threshold
 	numerical_eps = 1e-5
@@ -41,7 +45,7 @@ if __name__ == '__main__':
 	model.run_bp(start_iter=iter, max_iters=num_bp_iters, tol=stop_threshold)
 
 	userBelief, reviewBelief, _ = model.classify()
-
 	review_AUC, review_AP = evaluate(review_ground_truth, reviewBelief)
+
 	print('review AUC = {}'.format(review_AUC))
 	print('review AP  = {}'.format(review_AP))

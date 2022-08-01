@@ -331,6 +331,7 @@ def node_attr_filter(graph, attr, specific_attr, into_attr):
     specific_dict = attr_dict_index[specific_attr]
     filtered_dict = dict()
     into_dict = nx.get_node_attributes(graph, into_attr)
+
     for i in specific_dict:
         filtered_dict[i] = into_dict[i]
     return filtered_dict
